@@ -1,0 +1,167 @@
+architecture : engAudio to hindiAudio
+
+EAUDIO ----> clap -----> EngEMBEDDING ----> unet(upsample,downsample layers + positionalEncoding) 
+                                                |                               |
+                                                |                               |
+                                                |                               |
+                                    LATENT REPRESENTATIONS             OUTPUT(size of spectrogram)
+                                                |
+                                                |
+                                                |
+                                    SqueezeNExciteArchitecture
+                                                |
+                                                |
+                                                |
+                                LR --- μ σ and sample SPECTROGRAM shaped
+                                                |
+                                                |
+                                                |
+                                    REVERSE DIFFUSION CALCULATIONS
+                                                |
+                                                |
+                                                |
+                                         HINDI SPECTROGRAM
+                                                |
+                                                |
+                                                |
+                                             VOCODER
+                                                |
+                                                |
+                                                |
+                                           HINDI AUDIO
+
+                                        
+###PRETRAINED MODULES :
+CLAP 
+VOCODER(finetuning of HIFIGAN on HindiSpec-HindiAudio as HIFIGAN IS THE BEST)
+VAE(finetuned on EngSPEC-HindiSPEC)
+TRAINING PIPELINE OF UNET : we want to make its latent representation as rich as possible...
+
+                 (PRETRAINED)                                        
+EngSpectrogram---->VAE_ENCODER                             EnglishEmbedding-->UNET-->(outputSpectrogram)   ___loss___ HINDISPECTROGRAM
+                        |                                                       |
+                        |                                                       |
+                    LATENT SPACE               (same shape)                  LATENTREP --------------------------------------.
+                        |                                                       |                                            |
+                        |                                                       |                                            |    __________________________loss__________________________|                                            |                                                                                    |                                            |                          
+                                                                                |                                            |
+                                                                            VAE DECODER                                      |
+                                                                                |                                            |
+                                                                                |                                            |
+                                                                            OUTPUT SPEC  ___loss___ HINDISPECTROGRAM         |
+                                                                                                        |                    |
+                                                                                                        |                    |
+    above processes to maximise the alignment between the latent Rep and HINDISPECTROGRAM               |                    |
+                                                                                                        |                    |
+                                                                                                        |               flatten---μ,σ
+                                                                                                        |                    |
+                                                                                                        |                    |
+                                                                                                        |               randomSample(spec shape)
+                                                                                                        |                    |
+                                                                                                        |         SqueezeNExciteArchitecture
+                                                                                                        |                    |
+                                                                                                        |        #REVERSE DIFFUSION CALCULATIONS
+                                                                                                        |                    |
+                                                                                                        |_____loss____OUTPUTSPECTROGRAM 
+AND this process for getting actual output from the latent Rep                                                                                                                            
+
+###DOUBTS : 
+1. UNET MEI encoder decoder mei architecture ? aur sblog toh images pe lagate hai unet hum embedding pe lga rhe hai...
+unet toh spatial correspondence dekhta hai on different sized images toh field of view change hota rhta hai..isliye single convs se bhot better hai 
+PHLE BHI HUM audio,text,vae ki embedding concat krke bhej rhe the...kyu 
+iski kya sense hui...yeh embedding mei dekhke kya ukhaad lega 
+
+2. MERA idea yeh hai ki phle LR mei english ko hindi ka thoda disturbed version hojayega 
+aur fir vo reverse diffusion apne aap actual hindi jaisa bana dega 
+PAR TASALLI NHI MIL RHI KYUKI reverse diffusion koi model toh hai nhi jo train hoyega...
+model toh unet hai aur vo toh sirf english se kharab hindi tak ka kaam karega 
+abb kharab hindi se achi hindi tak reverse diffusion kaise le jayega
+
+3. Diffusion proces wali class mei random sample hum kaha intisliae mei krenge ya baar baatr naya ? wtf kaise pata chlega 
+
+4. latentRep ka μ,σ lene ka mtlb kya hai ? isse kya hua aur sbka 1 μ,σ banake toh galt hai....N (μ,σ) corresponding to all images in minibatches nhi hona chaiye ? except sirf 1 .......MTLB LR HAI BS,1152 toh essentialy BS,mu,sigma---BS,samples nikalne chaiye BS number of normal distributuoions se aisa kyu nhi 
+
+5. y reverse diffusion kaise kaam rha hai aajtak msajh nhi aya merko toh
+
+5. ye loss mei wweighted krna hai ya different scales ka saath mei ya kaise kr skte hai...aur...saaron ko saath meei combine krke step krna shai hai kinhi...aur inka loss 4 baar initialise krna chaiye ya 1 hi baar (same loss) ya loss train kr rhe hai toh jo similiar cheez pe kr rhe hai usko reuse maar skte hai par vaise losses alag hone chaie ?
+
+6. alag alag losses ke liye alag alag criterion aur optimiser chaiye kya aur kyu 
+
+7. Timestep Embedding mei model ke sath/ unet ke saath/ diffusion mei kab use aata hia aur kyu 
+
+8. UNET audio ldm mei unet mei usne data, timestep,encodeHiddenStates mangi thi humne ? 
+
+9. reverse mei merko yeh doubt hai ki...HUM VIASE TOH 1 image ko pura gaussian noise bana dete hai..fir ek random sample lete hai image k shape ka...fir uski stepwise reverse diffusion(denoising) krte hai according to noise schedule toh vo gaussian se denoise krte krte ek aisi image generate krta hai jo nayi hoti hai 
+AUDIO LDM PAPER MEI in training stage, we learn the generation of audio prior z 0 given the cross-modal representation E x of an audio sample x. Then,in TTA generation, we provide the text embedding E y to predict the noise Eθ (z n , n, E y ). Built on the CLAP latents, our LDM realizes TTA generation without text supervision in the training stage
+
+PAR HUM ENG TO HINDI KE LIYE KAISE use krenge...hum bhi sirf UNET wali latent representation tak hi jaynge training mei ? 
+Without english text aur reverse diffusion process training ke daurran toh nhi hoga na ? sampling ke vaqt hogi hindi spectrogram genration toh?
+
+doubt vaise merko ismei nhi tha par 
+
+Diffusion krte hua Nans aa rhe the...toh maine dekha logo ke codes ko...fir dekha ki hum humesha learned se ek 'n' images ko sample krte hai aur fir sirf unpe reverse diffusion krke answer nikalte hai jiase hum 15 audios save kr rhe the vaise hi...
+TOH ABB YE TRAINING PIPELINE KA PART NHI HAI YE TOH SAHI BOLA NA MAINE ? 
+Traning pipline sirf unet ki latent rep aur output tak seemit hai...
+instead hum jo kr skte hai vo hai ki 
+
+EnglishEmbedding-->UNET-->(outputSpectrogram)   ___loss___ HINDISPECTROGRAM
+                    |                                                       
+                    |                                                       
+                LATENTREP - flatten---μ,σ - randomSample(spec shape) - 'SqueezeNExciteArchitecture' - ###NO REVERSE DIFFUSION HERE ---NHI 
+                                                                                        |               
+                                                                                    OUTPUTSPECTROGRAM _______loss_________HindiSpecREAL
+
+iss squeezeNexcite wale ko thoda bada krle aur aise end2end ki tarah training krle 
+
+fir sampling krte samay latent rep ke baad squeeze n excite krke reverse diffusion wala process lagaynge taki squeezenexcite se vo hindi se bhot aligned ho jaye aur everse diffusion bas usse thoda refine krde.. par reverse difusion mei kaunsa schedule lgaana hai aur kyU? mtlb kya laabh hai 
+
+10. training ke baad evaluating ke time humne latent rep diya tha usse 1 mu,sig nikalke 1 smaple leke uspe 15 images geenrate krne ke liye reverse ofmrula lagake save krliya 
+PAR kya use hai iska...samjh nhi aaya ki 
+latent rep abb humari rich hai par abb ek english text / audio ke pertaining hindi autio.text kaise generate kiya vo aise random kaise kuch hoga ? ek architecture ke through hoga na ? hum jo phle kr rhe the usse kya ho rha hai
+
+
+
+# LOSS ki value abhi toh nan nhi aa rhi hai vaise 3 epochs ho gye 
+# toh abb aage kya karna hai? 
+## maine 4 losses le rkhe hai... toh inn MSE losses ki kya 4 classes initiaise hoke train honi chaiye kya, chaaron ko plus krke 1 optimiser ka .grad aur Loss.back aur opt.step kro...KYA YEH SHI HAI YA NHI...losses alag alag scales ke hai toh unhe kuch weighted krke sum krna chaiye kuch aisa bhi hai kya 
+# NHI BATA RHE HO TOH ISSE PADHNE KA SOURCE BHI BATADENA 
+
+reverse diffusion ke baare mei puchna hai kuch..3-4 cheezei kab puchu aur kab bataoge 
+apki banayi hui pipeline mei hum latent rep ko flat krke μ,σ leke 1 spectrogram generate krke uspe random n spectrograms ka reverse diffusion krke 'n' audios geenrate kr rhe the...Aur jo vo orginal image wala DALL-e ka implementation jiska code humne use kiya tha usmei bhi yahi ho rha tha 
+par iska kya matlb hua merko toh smajh aaya hi nhi 
+
+<!-- aisa kyu nhi krte ki
+latent rep bhi (BS,dim) ka hai toh (BS,μ),(BS,σ) agaya...isse (BS,samples) lelo aur fir inpe reverse diffusion ki calculation krke output spectrogram krlo 
+#aise random 1 sample leke kya mtlb kya kar rhe hai 
+--ye kr rhe hai ki random 1 gaussian noise liya reverse diffusion mei aur usse iteratively for number of timesteps denoise krdiya according to a beta-noise schedule. 
+-- par abb humare case mei ye gnerated latent representation se 1 sample pure gaussian noise (kharab hindi) hogyi aur fir noise hata rhe hai ? kis schedule ke according linear cosine whatever PAR ..ye kaam kaise kar skta hai..hum toh finally iska loss optimisation bhi nhi krte kyuki reverse diffuion toh hum sampling ke time krte hai training ke time nhi...toh schedule toh fixed hota hai jisse hum noise hatate hai...par ye kaam kyu kar jata hai 
+
+latent rep agar rich hai bhi toh ek english text / audio ke pertaining hindi autio kaise generate kiya vo aise random kaise kuch hoga ? ek architecture ke through hoga ya kaise? aur jo hum phle kr rhe the 15 random audio unse hum kya aur kyu kr rhe the.. -->
+
+# UNET ke architcture mei doubt hai ki hum transfromers kyu?? conv ka field of view kerne size same rkhke kam params se bhot faayda...toh vo kyu nhi krte hum.. transfromers se kya faayda hai.. Acha hai toh kya 4 transformers encoder mei and 4 decoder mei ? aisa hi ? aur agar unet conv wala toh usmei kya kitni layers aur kya sab...ek aur cheez unet audio embedding pe kyu spectrogram pe kyu nhi... aur sblog toh images pe lagate hai unet hum embedding pe lga rhe hai...
+unet toh spatial correspondence dekhta hai on different sized upscaled/downscaled images toh field of view change hota rhta hai with same kernel size toh params same rhte hai aur humei image ka better idea ho jata hai toh..isliye single convs se bhot better hai PHLE BHI HUM audio,text,vae ki embedding concat krke bhej rhe the...kyu 
+iski kya sense hui...yeh embedding mei dekhke kya ukhaad lega...vo bhi different embeddings ki 
+
+ek ye timestep ka kya panga hai merko nhi aa pa rha samjh ? kaha se padhu ? matlab unet mei bhi timseptes jaate hai aur reverse diffusion krte vqt bhi...kya similarity hai inn dono ke timestep mei...reverse mei toh hum batate hai kaunse time pe humne kaunsi noise add ki hogi toh kisse remove ho jayegi 
+unet mei hum kya bata rhe hai merko nhi samjh aaya...maine padha hai unet hum denoising ke liye use krte hai
+
+Achha spectrogram ko flatten krenege toh nhi krna chaiye..nhi toh spatial propertires kho jayengi..par humei linear lgaane pe toh kuch aisa nhi hai na ? bas computation badehga aur senseless calucaltions from every pixel to every hoga par jo chaiye vo hojayega isliye linear se koi problem toh nhi hai na vaise ? 
+
+ek chotti cheez ye puchni thi...ki jo squeeze() unsqueeze() hote hai..unse humari training mei koi farak nhi pdta kya ? hum change kr rhe hai aur backtrack kr rhe hai toh orginal wala change hoga va unsqueezed wala..? hai toh vaise 1/ bracket ka hi farak... par koi farak nhi pdta kya ? 
+AUR jaise vae mei humara BS,C,H,W ki hera pheri hui toh uska kya mtlb hai 
+
+
+5. y reverse diffusion kaise kaam rha hai aajtak msajh nhi aya merko toh
+8. UNET audio ldm mei unet mei usne data, timestep,encodeHiddenStates mangi thi humne ? 
+10. training ke baad evaluating ke time humne latent rep diya tha usse 1 mu,sig nikalke 1 smaple leke uspe 15 images geenrate krne ke liye reverse ofmrula lagake save krliya 
+PAR kya use hai iska...samjh nhi aaya ki 
+latent rep abb humari rich hai par abb ek english text / audio ke pertaining hindi autio.text kaise generate kiya vo aise random kaise kuch hoga ? ek architecture ke through hoga na ? hum jo phle kr rhe the usse kya ho rha hai
+
+
+merko abb yeh thoda aya tha smajh ki training pipeline huari model trianing ke liye hogyi...uske baad model train hogyaa uske parameters aagye model ke 
+abb hu architecture mei input denge aur output lete rhenge..toh uske hisab se maine banaye the architecture aur trianing pipline...fir apne bola 1 single architecture jo sab mei use ho jaye nhi iska kya matlba hai kya bolna chcha rhe ho 
+
+yahi sahi lg rha tha ki train krdo fir model ke architecture ke vqt hi hum model mei data deke output leke reverse diffusion krenge aur bas vhi answer hoga...ispe loss ya kya aur kaise krna hai ? abb aage samjhao 
+
+EK AUR PROBLEM ki vocoder mei agar hum humesha input 885 lngth ka daal rhe hai toh voh ek fixed length k hi audio produce krega...chahe humne 2 sec ki audio bhejiyo 7 ki vo 1 hi size ki audio ouptut krega vocdeor se..
+vocoder mein emo hifigan ya kya kaunsa 
